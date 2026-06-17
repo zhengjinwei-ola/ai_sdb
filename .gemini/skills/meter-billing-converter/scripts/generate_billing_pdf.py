@@ -406,9 +406,23 @@ body {{
         f.write(html)
         
     # Convert to PDF using soffice (force standard Writer mode for proper paginated A4 layout)
-    soffice_path = "/opt/homebrew/bin/soffice"
-    if not os.path.exists(soffice_path):
-        print(f"Error: LibreOffice '{soffice_path}' not found.")
+    # Probing for LibreOffice soffice path across Mac and Linux environments
+    soffice_path = "soffice" # Fallback to system command
+    possible_paths = [
+        "/opt/homebrew/bin/soffice",             # macOS Homebrew (M1/M2)
+        "/usr/local/bin/soffice",                # macOS Intel Homebrew / custom
+        "/usr/bin/soffice",                      # Linux (Ubuntu/Debian standard)
+        "/Applications/LibreOffice.app/Contents/MacOS/soffice", # macOS GUI App path
+    ]
+    for p in possible_paths:
+        if os.path.exists(p):
+            soffice_path = p
+            break
+            
+    # If using fallback "soffice", verify it exists in the system PATH
+    import shutil
+    if soffice_path == "soffice" and shutil.which("soffice") is None:
+        print("Error: LibreOffice 'soffice' executable not found in system PATH or standard directories.")
         sys.exit(1)
         
     # Standard HTML (StarWriter) filter enforces page-break properties correctly into Writer A4
