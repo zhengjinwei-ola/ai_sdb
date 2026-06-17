@@ -224,11 +224,11 @@ body {{
         if i > 0 and i % 3 == 0:
             html += f'  <p style="page-break-before: always; margin: 0; padding: 0; line-height: 0;">&nbsp;</p>\n'
         
-        html += f'  <div class="notice" style="box-sizing: border-box; padding: 1px 0; margin-bottom: 1.5mm;">\n'
-        html += f'    <div class="title" style="font-size: 12.5pt; font-weight: bold; text-align: center; margin-bottom: 1mm; letter-spacing: 1px; {font_family}">{year} 年 {month} 月 抄表计费通知单</div>\n'
-        
+        html += f'    <div class="notice" style="box-sizing: border-box; padding: 1px 0; margin-bottom: 0.5mm;">\n'
+        html += f'    <div class="title" style="font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 1mm; letter-spacing: 1px; {font_family}">{year} 年 {month} 月 抄表计费通知单</div>\n'
+
         # Meta-table with explicit inline styles
-        html += f'    <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 1mm; font-size: 8.5pt; {font_family}">\n'
+        html += f'    <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 0.5mm; font-size: 8.5pt; {font_family}">\n'
         html += f'      <tr>\n'
         html += f'        <td style="width: 25%; border: none; padding: 1px 0;">编号： {shop["id"]}</td>\n'
         html += f'        <td style="width: 25%; border: none; padding: 1px 0;">姓名 {shop["name"]}</td>\n'
@@ -236,9 +236,9 @@ body {{
         html += f'        <td style="width: 30%; border: none; padding: 1px 0;">抄表日期：{date_str}</td>\n'
         html += f'      </tr>\n'
         html += f'    </table>\n'
-        
+
         # Data-table with explicit inline styles for ALL borders and paddings
-        html += f'    <table style="width: 100%; border-collapse: collapse; border: 1px solid #000000; font-size: 8.5pt; text-align: center; margin-bottom: 1mm; {font_family}">\n'
+        html += f'    <table style="width: 100%; border-collapse: collapse; border: 1px solid #000000; font-size: 8.5pt; text-align: center; margin-bottom: 0.5mm; {font_family}">\n'
         html += f'      <thead>\n'
         html += f'        <tr>\n'
         html += f'          <th style="width: 18%; border: 1px solid #000000; padding: 3px 2px; font-weight: bold; background-color: #f2f2f2;">项目</th>\n'
@@ -345,7 +345,7 @@ body {{
         # Add divider line only between notices on the SAME page
         pos_in_page = i % 3
         if pos_in_page < 2 and i < len(shops) - 1:
-            html += f'  <div class="divider-line" style="text-align: center; font-size: 9pt; margin: 1.5mm 0; border-top: 1px dashed #000; height: 1px;">========================================</div>\n'
+            html += f'  <div class="divider-line" style="text-align: center; font-size: 9pt; margin: 0.5mm 0; border-top: 1px dashed #000; height: 1px;">========================================</div>\n'
 
     # Summary Page (always breaks page dynamically via CSS page-break-before)
     html += f'  <p style="page-break-before: always; margin: 0; padding: 0; line-height: 0;">&nbsp;</p>\n'
