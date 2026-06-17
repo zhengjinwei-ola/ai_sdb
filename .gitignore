@@ -1,0 +1,18 @@
+# Dependency directories
+node_modules/
+
+# Local env files
+.env
+.env.local
+
+# Python Virtual Environment
+.venv/
+__pycache__/
+*.pyc
+
+# Production build outputs
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
