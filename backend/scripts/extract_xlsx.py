@@ -1,10 +1,14 @@
 import openpyxl
 import json
 import sys
+import os
 
 def main():
     try:
-        wb = openpyxl.load_workbook('/Users/oswin/study/ai_sdb/meter-billing-converter/assets/meter_billing_template.xlsx')
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        workspace_root = os.path.abspath(os.path.join(script_dir, '../..'))
+        template_path = os.path.join(workspace_root, 'meter-billing-converter/assets/meter_billing_template.xlsx')
+        wb = openpyxl.load_workbook(template_path)
         ws = wb.active
         
         rows = list(ws.iter_rows(values_only=True))

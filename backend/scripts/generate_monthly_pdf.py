@@ -18,8 +18,12 @@ def main():
         period = data['period']  # e.g., '2026-06'
         shops = data['shops']
         
+        # Get workspace root dynamically
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        workspace_root = os.path.abspath(os.path.join(script_dir, '../..'))
+        
         # Load template
-        template_path = '/Users/oswin/study/ai_sdb/meter-billing-converter/assets/meter_billing_template.xlsx'
+        template_path = os.path.join(workspace_root, 'meter-billing-converter/assets/meter_billing_template.xlsx')
         wb = openpyxl.load_workbook(template_path)
         ws = wb.active
         
@@ -106,7 +110,7 @@ def main():
         
         # Run generate_billing_pdf.py using same python env
         python_bin = sys.executable
-        pdf_script = '/Users/oswin/study/ai_sdb/meter-billing-converter/scripts/generate_billing_pdf.py'
+        pdf_script = os.path.join(workspace_root, 'meter-billing-converter/scripts/generate_billing_pdf.py')
         output_pdf = os.path.join(os.getcwd(), f"{parts[0]}年{month}月抄表计费通知单.pdf")
         
         # Run subprocess
