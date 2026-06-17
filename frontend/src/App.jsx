@@ -164,7 +164,20 @@ export default function App() {
       link.click();
     } catch (err) {
       console.error('Error exporting PDF:', err);
-      alert('一键生成 PDF 账单失败，请检查是否所有商铺均已录入完成！');
+      if (err.response && err.response.data instanceof Blob) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const errorObj = JSON.parse(reader.result);
+            alert(`一键生成 PDF 失败：${errorObj.error}\n\n服务器错误详情：\n${errorObj.details || ''}`);
+          } catch (_) {
+            alert('一键生成 PDF 账单失败，请确保服务器上已正确安装 LibreOffice 并且水电读数已录入完整！');
+          }
+        };
+        reader.readAsText(err.response.data);
+      } else {
+        alert('一键生成 PDF 账单失败，请检查网络并确保服务器上已安装 LibreOffice！');
+      }
     } finally {
       setExporting(false);
     }
