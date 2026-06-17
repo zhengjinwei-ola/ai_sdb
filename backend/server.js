@@ -54,7 +54,7 @@ app.get('/api/shops', async (req, res) => {
           WHERE mr.billing_period = ? AND mr.current_reading IS NOT NULL
           GROUP BY m.shop_id
         ) r ON s.id = r.shop_id
-        ORDER BY s.shop_code;
+        ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code;
       `;
       params.push(period, period);
     } else {
@@ -69,7 +69,7 @@ app.get('/api/shops', async (req, res) => {
           WHERE is_active = 1 
           GROUP BY shop_id
         ) m ON s.id = m.shop_id
-        ORDER BY s.shop_code;
+        ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code;
       `;
     }
     const [shops] = await pool.query(query, params);
@@ -309,7 +309,7 @@ app.post('/api/export/pdf', async (req, res) => {
       FROM shops s
       JOIN meters m ON s.id = m.shop_id AND m.is_active = 1
       LEFT JOIN meter_readings mr ON m.id = mr.meter_id AND mr.billing_period = ?
-      ORDER BY s.shop_code, m.id;
+      ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code, m.id;
     `;
     const [rows] = await pool.query(query, [period]);
     
@@ -386,7 +386,7 @@ app.get('/api/reports/ledger', async (req, res) => {
       FROM shops s
       JOIN meters m ON s.id = m.shop_id AND m.is_active = 1
       LEFT JOIN meter_readings mr ON m.id = mr.meter_id AND mr.billing_period = ?
-      ORDER BY s.shop_code, m.id;
+      ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code, m.id;
     `;
     const [rows] = await pool.query(query, [period]);
     
