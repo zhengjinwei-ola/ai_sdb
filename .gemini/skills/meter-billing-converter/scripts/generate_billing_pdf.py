@@ -211,7 +211,7 @@ body {{
     margin: 0;
     padding: 0;
     background-color: #fff;
-    line-height: 1.1;
+    line-height: 100%;
     -webkit-print-color-adjust: exact;
 }}
 .notice {{
@@ -220,8 +220,21 @@ body {{
     break-inside: avoid;
 }}
 table {{
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0cm;
+    padding: 0cm;
     page-break-inside: avoid;
     break-inside: avoid;
+}}
+tr {{
+    margin: 0cm;
+    padding: 0cm;
+}}
+th, td {{
+    margin: 0cm;
+    padding: 0.2mm 0.4mm;
+    line-height: 100%;
 }}
 </style>
 </head>
@@ -234,29 +247,29 @@ table {{
         page_break_style = "page-break-before: always;" if (i > 0 and i % 3 == 0) else ""
         
         html += f'    <div class="notice" style="box-sizing: border-box; padding: 0.5mm 0; margin-bottom: 0.2mm; page-break-inside: avoid; break-inside: avoid; {page_break_style}">\n'
-        html += f'    <div class="title" style="font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 0.8mm; line-height: 1.1; letter-spacing: 1px; {font_family}">{year} 年 {month} 月 抄表计费通知单</div>\n'
+        html += f'    <div class="title" style="font-size: 11pt; font-weight: bold; text-align: center; margin-bottom: 0.6mm; line-height: 100%; letter-spacing: 1px; {font_family}">{year} 年 {month} 月 抄表计费通知单</div>\n'
 
         # Meta-table with explicit inline styles
-        html += f'    <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 0.3mm; font-size: 8.5pt; line-height: 1.1; {font_family}">\n'
+        html += f'    <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 0.3mm; font-size: 8.5pt; line-height: 100%; {font_family}">\n'
         html += f'      <tr>\n'
-        html += f'        <td style="width: 25%; border: none; padding: 1px 0;">编号： {shop["id"]}</td>\n'
-        html += f'        <td style="width: 25%; border: none; padding: 1px 0;">姓名 {shop["name"]}</td>\n'
-        html += f'        <td style="width: 20%; border: none; padding: 1px 0;">抄表人： 李</td>\n'
-        html += f'        <td style="width: 30%; border: none; padding: 1px 0;">抄表日期：{date_str}</td>\n'
+        html += f'        <td style="width: 25%; border: none; padding: 0.2mm 0; margin: 0mm;">编号： {shop["id"]}</td>\n'
+        html += f'        <td style="width: 25%; border: none; padding: 0.2mm 0; margin: 0mm;">姓名 {shop["name"]}</td>\n'
+        html += f'        <td style="width: 20%; border: none; padding: 0.2mm 0; margin: 0mm;">抄表人： 李</td>\n'
+        html += f'        <td style="width: 30%; border: none; padding: 0.2mm 0; margin: 0mm;">抄表日期：{date_str}</td>\n'
         html += f'      </tr>\n'
         html += f'    </table>\n'
 
         # Data-table with explicit inline styles for ALL borders and paddings
-        html += f'    <table style="width: 100%; border-collapse: collapse; border: 1px solid #000000; font-size: 8.5pt; line-height: 1.1; text-align: center; margin-bottom: 0.3mm; {font_family}">\n'
+        html += f'    <table style="width: 100%; border-collapse: collapse; border: 1px solid #000000; font-size: 8pt; line-height: 100%; text-align: center; margin-bottom: 0.3mm; {font_family}">\n'
         html += f'      <thead>\n'
         html += f'        <tr>\n'
-        html += f'          <th style="width: 18%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">项目</th>\n'
-        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">上月表底</th>\n'
-        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">本月抄表数</th>\n'
-        html += f'          <th style="width: 13%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">实用度数</th>\n'
-        html += f'          <th style="width: 13%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">公共分摊</th>\n'
-        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">单价（元）</th>\n'
-        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2;">金额</th>\n'
+        html += f'          <th style="width: 18%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">项目</th>\n'
+        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">上月表底</th>\n'
+        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">本月抄表数</th>\n'
+        html += f'          <th style="width: 13%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">实用度数</th>\n'
+        html += f'          <th style="width: 13%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">公共分摊</th>\n'
+        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">单价（元）</th>\n'
+        html += f'          <th style="width: 14%; border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%;">金额</th>\n'
         html += f'        </tr>\n'
         html += f'      </thead>\n'
         html += f'      <tbody>\n'
@@ -266,81 +279,81 @@ table {{
             diff = max(0, m['curr'] - m['prev'])
             if idx == 0:
                 html += f'        <tr>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{m["name"]}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{m["prev"]}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{m["curr"]}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{diff}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["elec_price"]:.2f}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["elec_amount"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{m["name"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{m["prev"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{m["curr"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{diff}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["elec_price"]:.2f}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["elec_amount"]}</td>\n'
                 html += f'        </tr>\n'
             else:
                 html += f'        <tr>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{m["name"]}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{m["prev"]}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{m["curr"]}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{diff}</td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-                html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{m["name"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{m["prev"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{m["curr"]}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{diff}</td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+                html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
                 html += f'        </tr>\n'
                 
         # Water row
         html += f'        <tr>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">水费</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["water"]["prev"]}</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["water"]["curr"]}</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["water"]["diff"]}</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["water"]["price"]:.3f}</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["water"]["amount"]}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">水费</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["water"]["prev"]}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["water"]["curr"]}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["water"]["diff"]}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["water"]["price"]:.3f}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["water"]["amount"]}</td>\n'
         html += f'        </tr>\n'
         
         # Other rows
         html += f'        <tr>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">水电人工<br>费</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["labor_fee"]:.2f}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">水电人工费</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["labor_fee"]:.2f}</td>\n'
         html += f'        </tr>\n'
         
         html += f'        <tr>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">垃圾处理<br>费</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">{shop["garbage_fee"]:.2f}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">垃圾处理费</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">{shop["garbage_fee"]:.2f}</td>\n'
         html += f'        </tr>\n'
         
         html += f'        <tr>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">滞纳金</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">0.00</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">滞纳金</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">0.00</td>\n'
         html += f'        </tr>\n'
         
         html += f'        <tr>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">广告费</td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;"></td>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1px 1.5px; height: 11px; line-height: 1.1; vertical-align: middle;">0.00</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">广告费</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;"></td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.2mm 0.4mm; margin: 0mm; line-height: 100%; vertical-align: middle;">0.00</td>\n'
         html += f'        </tr>\n'
         
         # Total row with inline style
         html += f'        <tr>\n'
-        html += f'          <td style="border: 1px solid #000000; padding: 1.5px 2px; font-weight: bold; background-color: #f2f2f2; height: 11px; line-height: 1.1; vertical-align: middle;">合计</td>\n'
-        html += f'          <td colspan="6" style="border: 1px solid #000000; padding: 1.5px 2px; text-align: left; padding-left: 8px; font-weight: bold; font-size: 8.5pt; height: 11px; line-height: 1.1; vertical-align: middle;">大写：{shop["uppercase_total"]} &nbsp;&nbsp;&nbsp;&nbsp; 小写： {shop["total"]:.2f}</td>\n'
+        html += f'          <td style="border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; font-weight: bold; background-color: #f2f2f2; line-height: 100%; vertical-align: middle;">合计</td>\n'
+        html += f'          <td colspan="6" style="border: 1px solid #000000; padding: 0.3mm 0.5mm; margin: 0mm; text-align: left; padding-left: 2mm; font-weight: bold; font-size: 8pt; line-height: 100%; vertical-align: middle;">大写：{shop["uppercase_total"]} &nbsp;&nbsp;&nbsp;&nbsp; 小写： {shop["total"]:.2f}</td>\n'
         html += f'        </tr>\n'
         
         html += f'      </tbody>\n'
