@@ -371,7 +371,8 @@ th, td {{
             html += f'  <div class="divider-line" style="margin: 0.4mm 0; border-top: 1px dashed #000; height: 1px; font-size: 1px; line-height: 1px;"></div>\n'
 
     # Summary Page (always breaks page dynamically via CSS page-break-before)
-    html += f'  <div class="summary-page" style="page-break-before: always; page-break-inside: avoid; box-sizing: border-box; padding-top: 5mm;">\n'
+    html += f'  <p style="page-break-before: always; margin: 0; padding: 0; line-height: 0;">&nbsp;</p>\n'
+    html += f'  <div class="summary-page" style="page-break-inside: avoid; box-sizing: border-box; padding-top: 5mm;">\n'
     html += f'    <div class="summary-title" style="font-size: 18pt; font-weight: bold; text-align: center; margin-bottom: 10mm; {font_family}">费用汇总表</div>\n'
     
     # Summary Table with explicit inline styles
