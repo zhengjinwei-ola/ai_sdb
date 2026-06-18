@@ -20,7 +20,41 @@ import {
   RotateCcw
 } from 'lucide-react';
 
+// Setup axios global request/response interceptors for JWT auth
+axios.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
+
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response && error.response.status === 401) {
+      const hadToken = localStorage.getItem('token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('username');
+      if (hadToken) {
+        window.location.reload();
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default function App() {
+  // Auth state
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [username, setUsername] = useState(localStorage.getItem('username') || '');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isRegister, setIsRegister] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'history' | 'manage'
   const [period, setPeriod] = useState('2026-06'); // default billing period
   const [shops, setShops] = useState([]);
@@ -39,6 +73,14 @@ export default function App() {
   const [newShopName, setNewShopName] = useState('');
   const [newLaborFee, setNewLaborFee] = useState(30);
   const [newRubbishFee, setNewRubbishFee] = useState(50);
+
+  // Shop edit states
+  const [showEditShopModal, setShowEditShopModal] = useState(false);
+  const [editingShopId, setEditingShopId] = useState(null);
+  const [editShopCode, setEditShopCode] = useState('');
+  const [editShopName, setEditShopName] = useState('');
+  const [editLaborFee, setEditLaborFee] = useState(0);
+  const [editRubbishFee, setEditRubbishFee] = useState(0);
   
   // Meter manager states
   const [selectedShopForMeter, setSelectedShopForMeter] = useState(null);
@@ -46,6 +88,102 @@ export default function App() {
   const [newMeterType, setNewMeterType] = useState('electricity');
   const [newMeterName, setNewMeterName] = useState('电表1');
   const [newMeterPrice, setNewMeterPrice] = useState(1.03);
+
+  // Auth Handlers
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setAuthError('');
+    try {
+      const res = await axios.post('/api/auth/login', {
+        username: loginUsername,
+        password: loginPassword
+      });
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('username', res.data.username);
+      setToken(res.data.token);
+      setUsername(res.data.username);
+    } catch (err) {
+      console.error(err);
+      setAuthError(err.response?.data?.error || '登录失败，请检查用户名或密码！');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setAuthError('');
+    try {
+      await axios.post('/api/auth/register', {
+        username: loginUsername,
+        password: loginPassword
+      });
+      alert('注册成功，请登录！');
+      setIsRegister(false);
+      setLoginPassword('');
+    } catch (err) {
+      console.error(err);
+      setAuthError(err.response?.data?.error || '注册失败，该用户名已被注册！');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setToken('');
+    setUsername('');
+    setShops([]);
+  };
+
+  // Shop Edit/Delete Handlers
+  const handleOpenEditShop = (shop) => {
+    setEditingShopId(shop.id);
+    setEditShopCode(shop.shop_code);
+    setEditShopName(shop.shop_name);
+    setEditLaborFee(shop.labor_fee);
+    setEditRubbishFee(shop.rubbish_fee);
+    setShowEditShopModal(true);
+  };
+
+  const handleEditShop = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await axios.put(`/api/shops/${editingShopId}`, {
+        shopCode: editShopCode,
+        shopName: editShopName,
+        laborFee: editLaborFee,
+        rubbishFee: editRubbishFee
+      });
+      setShowEditShopModal(false);
+      fetchShops();
+    } catch (err) {
+      console.error('Error editing shop:', err);
+      alert(err.response?.data?.error || '修改商铺信息失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteShop = async (shopId) => {
+    if (!window.confirm('您确定要删除该商铺吗？这将永久删除该商铺的所有表计和历史抄表记录！此操作无法撤销。')) {
+      return;
+    }
+    setLoading(true);
+    try {
+      await axios.delete(`/api/shops/${shopId}`);
+      fetchShops();
+    } catch (err) {
+      console.error('Error deleting shop:', err);
+      alert(err.response?.data?.error || '删除商铺失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Calculate locked status (natural months limit)
   const getCurrentPeriod = () => {
@@ -254,6 +392,76 @@ export default function App() {
     }
   }, [newMeterType]);
 
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+        <div className="bg-slate-800 text-white max-w-md w-full p-8 rounded-3xl border border-slate-700 shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="mx-auto bg-amber-500 w-12 h-12 rounded-2xl flex items-center justify-center text-slate-900 font-extrabold text-xl shadow-lg shadow-amber-500/30">
+              <Building2 size={24} />
+            </div>
+            <h1 className="text-2xl font-black tracking-tight text-white">商户物业水电收费系统</h1>
+            <p className="text-xs text-gray-400 font-medium">请登录或注册您的管理账号</p>
+          </div>
+
+          <form onSubmit={isRegister ? handleRegister : handleLogin} className="space-y-4">
+            {authError && (
+              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs py-2 px-3 rounded-xl flex items-center space-x-1.5">
+                <AlertTriangle size={14} className="flex-shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+            
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">用户名</label>
+              <input 
+                type="text"
+                required
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="请输入用户名"
+                className="w-full bg-slate-900/60 text-white placeholder-slate-500 font-bold px-4 py-3 rounded-xl text-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">密码</label>
+              <input 
+                type="password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="请输入密码"
+                className="w-full bg-slate-900/60 text-white placeholder-slate-500 font-bold px-4 py-3 rounded-xl text-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black py-3 rounded-xl text-sm transition-all shadow-lg shadow-amber-500/10"
+            >
+              {loading ? '正在处理...' : (isRegister ? '注册账号' : '安全登录')}
+            </button>
+          </form>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setAuthError('');
+              }}
+              className="text-amber-500 hover:text-amber-400 font-bold text-xs underline transition-colors"
+            >
+              {isRegister ? '已有账号？返回登录' : '没有账号？创建新管理账号'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row pb-12 md:pb-0">
       
@@ -289,6 +497,22 @@ export default function App() {
             </button>
           </nav>
         </div>
+
+        {/* User profile & Logout at bottom of sidebar (on desktop) */}
+        <div className="hidden md:flex flex-col border-t border-slate-800 pt-4 space-y-3">
+          <div className="flex items-center space-x-2 px-3 text-slate-400">
+            <span className="bg-slate-800 text-amber-500 font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">
+              {username ? username[0].toUpperCase() : 'U'}
+            </span>
+            <span className="text-sm font-medium text-slate-300 truncate">{username}</span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center space-x-2 px-3 py-2 w-full text-left rounded-lg text-sm font-bold text-rose-400 hover:bg-rose-950/20 hover:text-rose-300 transition-colors"
+          >
+            <span>退出登录</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -304,6 +528,32 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            {/* User display & logout for mobile */}
+            <div className="flex sm:hidden items-center justify-between w-full pb-2 border-b border-gray-100">
+              <span className="text-xs text-gray-500 font-bold">当前用户: <b className="text-gray-700">{username}</b></span>
+              <button 
+                onClick={handleLogout}
+                className="text-xs font-black text-rose-500 hover:text-rose-600"
+              >
+                退出登录
+              </button>
+            </div>
+            
+            {/* Desktop user display */}
+            <div className="hidden sm:flex items-center space-x-2 bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl text-slate-600">
+              <span className="bg-slate-800 text-amber-500 font-bold w-6 h-6 rounded-lg flex items-center justify-center text-[10px]">
+                {username ? username[0].toUpperCase() : 'U'}
+              </span>
+              <span className="text-xs font-bold">{username}</span>
+              <span className="text-slate-300">|</span>
+              <button 
+                onClick={handleLogout}
+                className="text-xs font-black text-rose-500 hover:text-rose-600 transition-colors"
+              >
+                退出
+              </button>
+            </div>
+
             {/* Period Picker */}
             <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-200">
               <Calendar size={16} className="text-gray-400" />
@@ -532,9 +782,27 @@ export default function App() {
                 {shops.map((shop) => (
                   <div key={shop.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 gap-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="bg-slate-100 text-slate-800 text-xs font-bold px-2.5 py-0.5 rounded-lg">{shop.shop_code}</span>
-                        <h4 className="font-bold text-gray-800 text-lg">{shop.shop_name}</h4>
+                      <div className="flex items-center justify-between w-full sm:w-auto">
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-slate-100 text-slate-800 text-xs font-bold px-2.5 py-0.5 rounded-lg">{shop.shop_code}</span>
+                          <h4 className="font-bold text-gray-800 text-lg truncate max-w-[12rem]">{shop.shop_name}</h4>
+                        </div>
+                        <div className="flex items-center space-x-1.5 ml-2">
+                          <button 
+                            onClick={() => handleOpenEditShop(shop)}
+                            className="p-1 hover:bg-amber-50 text-amber-500 hover:text-amber-600 rounded transition-colors"
+                            title="编辑商铺"
+                          >
+                            <Edit size={15} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteShop(shop.id)}
+                            className="p-1 hover:bg-rose-50 text-rose-500 hover:text-rose-600 rounded transition-colors"
+                            title="删除商铺"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
@@ -769,6 +1037,76 @@ export default function App() {
                 className="w-full bg-amber-500 text-slate-950 font-bold py-2.5 rounded-xl text-sm hover:bg-amber-600 transition-colors shadow-sm"
               >
                 确定新增
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Shop */}
+      {showEditShopModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 text-lg">编辑店铺</h3>
+              <button onClick={() => setShowEditShopModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditShop} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">铺面编号</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="如: 22#"
+                  value={editShopCode}
+                  onChange={(e) => setEditShopCode(e.target.value)}
+                  className="border border-gray-200 px-3 py-2 rounded-xl text-sm w-full focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">商铺名称</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="如: 绝味鸭脖"
+                  value={editShopName}
+                  onChange={(e) => setEditShopName(e.target.value)}
+                  className="border border-gray-200 px-3 py-2 rounded-xl text-sm w-full focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">人工管理费</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={editLaborFee}
+                    onChange={(e) => setEditLaborFee(e.target.value)}
+                    className="border border-gray-200 px-3 py-2 rounded-xl text-sm w-full focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">垃圾处理费</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={editRubbishFee}
+                    onChange={(e) => setEditRubbishFee(e.target.value)}
+                    className="border border-gray-200 px-3 py-2 rounded-xl text-sm w-full focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full bg-amber-500 text-slate-950 font-bold py-2.5 rounded-xl text-sm hover:bg-amber-600 transition-colors shadow-sm"
+              >
+                保存修改
               </button>
             </form>
           </div>

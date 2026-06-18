@@ -5,6 +5,8 @@ import path from 'path';
 import pool from './config/db.js';
 import { exec } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -13,6 +15,26 @@ const PORT = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || 'meter-billing-secret-key-2026';
+
+// Middleware to verify JWT Token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied. No token provided.' });
+  }
+  
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token.' });
+    }
+    req.user = user;
+    next();
+  });
+}
 
 // Helper function to subtract 1 month from YYYY-MM
 function getPreviousPeriod(period) {
@@ -29,8 +51,54 @@ function getPreviousPeriod(period) {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
+// --- Auth Endpoints ---
+
+// POST /api/auth/register - Register a new user
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: '用户名和密码不能为空' });
+  }
+  try {
+    const [existing] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: '该用户名已被注册' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await pool.query('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword]);
+    res.status(201).json({ message: '注册成功' });
+  } catch (error) {
+    console.error('Error during registration:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/auth/login - User login
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: '用户名和密码不能为空' });
+  }
+  try {
+    const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
+    if (users.length === 0) {
+      return res.status(401).json({ error: '用户名或密码不正确' });
+    }
+    const user = users[0];
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: '用户名或密码不正确' });
+    }
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, username: user.username });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 1. GET /api/shops - List all shops with meter count, completed readings, and full meters list
-app.get('/api/shops', async (req, res) => {
+app.get('/api/shops', authenticateToken, async (req, res) => {
   const { period } = req.query;
   try {
     let query;
@@ -54,9 +122,10 @@ app.get('/api/shops', async (req, res) => {
           WHERE mr.billing_period = ? AND mr.current_reading IS NOT NULL
           GROUP BY m.shop_id
         ) r ON s.id = r.shop_id
+        WHERE s.user_id = ?
         ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code;
       `;
-      params.push(period, period);
+      params.push(period, period, req.user.id);
     } else {
       query = `
         SELECT s.*, 
@@ -69,13 +138,18 @@ app.get('/api/shops', async (req, res) => {
           WHERE is_active = 1 
           GROUP BY shop_id
         ) m ON s.id = m.shop_id
+        WHERE s.user_id = ?
         ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code;
       `;
+      params.push(req.user.id);
     }
     const [shops] = await pool.query(query, params);
     
-    // Fetch all meters
-    const [meters] = await pool.query('SELECT * FROM meters ORDER BY id');
+    // Fetch all meters belonging to this user's shops
+    const [meters] = await pool.query(
+      'SELECT m.* FROM meters m JOIN shops s ON m.shop_id = s.id WHERE s.user_id = ? ORDER BY m.id',
+      [req.user.id]
+    );
     
     // Group meters by shop_id
     const metersMap = {};
@@ -100,15 +174,21 @@ app.get('/api/shops', async (req, res) => {
 });
 
 // 2. POST /api/shops - Add new shop
-app.post('/api/shops', async (req, res) => {
+app.post('/api/shops', authenticateToken, async (req, res) => {
   const { shopCode, shopName, laborFee, rubbishFee } = req.body;
   if (!shopCode || !shopName) {
     return res.status(400).json({ error: 'Shop code and name are required' });
   }
   try {
+    // Check code uniqueness for this user
+    const [existing] = await pool.query('SELECT id FROM shops WHERE user_id = ? AND shop_code = ?', [req.user.id, shopCode]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: `该编号的商铺 ${shopCode} 已存在` });
+    }
+
     const [result] = await pool.query(
-      'INSERT INTO shops (shop_code, shop_name, labor_fee, rubbish_fee) VALUES (?, ?, ?, ?)',
-      [shopCode, shopName, laborFee || 0, rubbishFee || 0]
+      'INSERT INTO shops (shop_code, shop_name, labor_fee, rubbish_fee, user_id) VALUES (?, ?, ?, ?, ?)',
+      [shopCode, shopName, laborFee || 0, rubbishFee || 0, req.user.id]
     );
     res.status(201).json({ id: result.insertId, shopCode, shopName, laborFee, rubbishFee });
   } catch (error) {
@@ -118,13 +198,19 @@ app.post('/api/shops', async (req, res) => {
 });
 
 // 3. POST /api/shops/:id/meters - Add new meter to shop
-app.post('/api/shops/:id/meters', async (req, res) => {
+app.post('/api/shops/:id/meters', authenticateToken, async (req, res) => {
   const shopId = req.params.id;
   const { meterType, meterName, unitPrice } = req.body;
   if (!meterType || !meterName || unitPrice === undefined) {
     return res.status(400).json({ error: 'meterType, meterName, and unitPrice are required' });
   }
   try {
+    // Verify shop ownership
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    if (shop.length === 0) {
+      return res.status(403).json({ error: 'Access denied or shop not found.' });
+    }
+
     const [result] = await pool.query(
       'INSERT INTO meters (shop_id, meter_type, meter_name, unit_price, is_active) VALUES (?, ?, ?, ?, 1)',
       [shopId, meterType, meterName, unitPrice]
@@ -137,10 +223,19 @@ app.post('/api/shops/:id/meters', async (req, res) => {
 });
 
 // 4. PUT /api/meters/:id - Edit meter (modify price or deactivate)
-app.put('/api/meters/:id', async (req, res) => {
+app.put('/api/meters/:id', authenticateToken, async (req, res) => {
   const meterId = req.params.id;
   const { unitPrice, isActive } = req.body;
   try {
+    // Verify meter ownership through shop ownership
+    const [shop] = await pool.query(
+      'SELECT s.id FROM shops s JOIN meters m ON s.id = m.shop_id WHERE m.id = ? AND s.user_id = ?',
+      [meterId, req.user.id]
+    );
+    if (shop.length === 0) {
+      return res.status(403).json({ error: 'Access denied or meter not found.' });
+    }
+
     let updateFields = [];
     let params = [];
     if (unitPrice !== undefined) {
@@ -169,7 +264,7 @@ app.put('/api/meters/:id', async (req, res) => {
 });
 
 // 5. GET /api/shops/:id/readings - Get readings for shop in period (with carry-over logic)
-app.get('/api/shops/:id/readings', async (req, res) => {
+app.get('/api/shops/:id/readings', authenticateToken, async (req, res) => {
   const shopId = req.params.id;
   const { period } = req.query; // YYYY-MM, e.g., '2026-06'
   
@@ -178,6 +273,12 @@ app.get('/api/shops/:id/readings', async (req, res) => {
   }
   
   try {
+    // Verify shop ownership
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    if (shop.length === 0) {
+      return res.status(403).json({ error: 'Access denied or shop not found.' });
+    }
+
     // A. Query active meters for the shop that existed during or before this period
     const [meters] = await pool.query(
       "SELECT id, meter_type, meter_name, unit_price, created_at FROM meters WHERE shop_id = ? AND is_active = 1 AND DATE_FORMAT(created_at, '%Y-%m') <= ?",
@@ -237,19 +338,31 @@ app.get('/api/shops/:id/readings', async (req, res) => {
 });
 
 // 6. POST /api/readings/bulk - Submit bulk readings for a period
-app.post('/api/readings/bulk', async (req, res) => {
+app.post('/api/readings/bulk', authenticateToken, async (req, res) => {
   const { period, readings } = req.body; // readings: Array of { meterId, previousReading, currentReading }
   if (!period || !readings || !Array.isArray(readings)) {
     return res.status(400).json({ error: 'period and readings (array) are required' });
   }
   
   try {
+    // Get all meter IDs belonging to this user's shops
+    const [userMeters] = await pool.query(
+      'SELECT m.id FROM meters m JOIN shops s ON m.shop_id = s.id WHERE s.user_id = ?',
+      [req.user.id]
+    );
+    const userMeterIds = new Set(userMeters.map(m => m.id));
+
     for (const r of readings) {
       const { meterId, previousReading, currentReading } = r;
       if (meterId === undefined || previousReading === undefined || currentReading === undefined) {
         continue;
       }
       
+      // Verify this meter belongs to the logged-in user
+      if (!userMeterIds.has(meterId)) {
+        continue; // skip unauthorized meter readings
+      }
+
       const parsedCurrent = currentReading === null || currentReading === '' ? null : parseFloat(currentReading);
       const parsedPrev = parseFloat(previousReading);
       
@@ -294,14 +407,14 @@ app.post('/api/readings/bulk', async (req, res) => {
 });
 
 // 7. POST /api/export/pdf - Export current readings of the period to PDF notices
-app.post('/api/export/pdf', async (req, res) => {
+app.post('/api/export/pdf', authenticateToken, async (req, res) => {
   const { period } = req.body; // e.g. '2026-06'
   if (!period) {
     return res.status(400).json({ error: 'period is required' });
   }
   
   try {
-    // A. Query all shops, their active meters, and readings for this period
+    // A. Query all shops, their active meters, and readings for this period belonging to this user
     const query = `
       SELECT s.id as shop_id, s.shop_code, s.shop_name, s.labor_fee, s.rubbish_fee,
              m.id as meter_id, m.meter_type, m.meter_name, m.unit_price,
@@ -309,9 +422,10 @@ app.post('/api/export/pdf', async (req, res) => {
       FROM shops s
       JOIN meters m ON s.id = m.shop_id AND m.is_active = 1
       LEFT JOIN meter_readings mr ON m.id = mr.meter_id AND mr.billing_period = ?
+      WHERE s.user_id = ?
       ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code, m.id;
     `;
-    const [rows] = await pool.query(query, [period]);
+    const [rows] = await pool.query(query, [period, req.user.id]);
     
     // Check if there are any incomplete readings (current_reading is null)
     const incompleteRows = rows.filter(row => row.current_reading === null);
@@ -382,7 +496,7 @@ app.post('/api/export/pdf', async (req, res) => {
 });
 
 // 8. GET /api/reports/ledger - Get detailed compiled ledger for a period (with matching rounding math)
-app.get('/api/reports/ledger', async (req, res) => {
+app.get('/api/reports/ledger', authenticateToken, async (req, res) => {
   const { period } = req.query;
   if (!period) {
     return res.status(400).json({ error: 'period parameter is required' });
@@ -396,9 +510,10 @@ app.get('/api/reports/ledger', async (req, res) => {
       FROM shops s
       JOIN meters m ON s.id = m.shop_id AND m.is_active = 1
       LEFT JOIN meter_readings mr ON m.id = mr.meter_id AND mr.billing_period = ?
+      WHERE s.user_id = ?
       ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code, m.id;
     `;
-    const [rows] = await pool.query(query, [period]);
+    const [rows] = await pool.query(query, [period, req.user.id]);
     
     // Group by shop and aggregate usages
     const shopsMap = {};
@@ -476,6 +591,58 @@ app.get('/api/reports/ledger', async (req, res) => {
     
   } catch (error) {
     console.error('Error compiling ledger report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 9. PUT /api/shops/:id - Edit shop details
+app.put('/api/shops/:id', authenticateToken, async (req, res) => {
+  const shopId = req.params.id;
+  const { shopCode, shopName, laborFee, rubbishFee } = req.body;
+  if (!shopCode || !shopName) {
+    return res.status(400).json({ error: 'Shop code and name are required' });
+  }
+  try {
+    // Verify ownership
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    if (shop.length === 0) {
+      return res.status(403).json({ error: 'Access denied or shop not found.' });
+    }
+    
+    // Check code uniqueness for this user
+    const [existing] = await pool.query(
+      'SELECT id FROM shops WHERE user_id = ? AND shop_code = ? AND id != ?',
+      [req.user.id, shopCode, shopId]
+    );
+    if (existing.length > 0) {
+      return res.status(400).json({ error: `该编号的商铺 ${shopCode} 已存在` });
+    }
+
+    await pool.query(
+      'UPDATE shops SET shop_code = ?, shop_name = ?, labor_fee = ?, rubbish_fee = ? WHERE id = ?',
+      [shopCode, shopName, parseFloat(laborFee) || 0, parseFloat(rubbishFee) || 0, shopId]
+    );
+    res.json({ message: 'Shop updated successfully' });
+  } catch (error) {
+    console.error('Error updating shop:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 10. DELETE /api/shops/:id - Delete shop (and cascade meters/readings)
+app.delete('/api/shops/:id', authenticateToken, async (req, res) => {
+  const shopId = req.params.id;
+  try {
+    // Verify ownership
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    if (shop.length === 0) {
+      return res.status(403).json({ error: 'Access denied or shop not found.' });
+    }
+    
+    await pool.query('DELETE FROM shops WHERE id = ?', [shopId]);
+    res.json({ message: 'Shop deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting shop:', error);
     res.status(500).json({ error: error.message });
   }
 });
