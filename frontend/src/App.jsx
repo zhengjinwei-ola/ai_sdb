@@ -226,11 +226,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchShops();
-    if (activeTab === 'history') {
-      fetchLedger();
+    if (token) {
+      fetchShops();
+      if (activeTab === 'history') {
+        fetchLedger();
+      }
     }
-  }, [activeTab, period]);
+  }, [activeTab, period, token]);
 
   // Handle opening readings input for a shop
   const handleOpenReadings = async (shop) => {
