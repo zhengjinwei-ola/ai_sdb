@@ -313,6 +313,16 @@ app.post('/api/export/pdf', async (req, res) => {
     `;
     const [rows] = await pool.query(query, [period]);
     
+    // Check if there are any incomplete readings (current_reading is null)
+    const incompleteRows = rows.filter(row => row.current_reading === null);
+    if (incompleteRows.length > 0) {
+      const incompleteShopNames = [...new Set(incompleteRows.map(r => r.shop_name))].join('、');
+      return res.status(400).json({ 
+        error: '还有未完成的抄表记录，无法生成 PDF 账单！', 
+        details: `未完成录入的店铺：${incompleteShopNames}。请确保所有店铺的水电表底数均已录入。` 
+      });
+    }
+    
     // Group by shop
     const shopsMap = {};
     for (const row of rows) {

@@ -55,6 +55,11 @@ export default function App() {
   const currentPeriodStr = getCurrentPeriod();
   const isPeriodLocked = period < currentPeriodStr;
 
+  // Calculate dynamic meter reading progress
+  const totalMeters = shops.reduce((sum, s) => sum + (s.meter_count || 0), 0);
+  const completedMeters = shops.reduce((sum, s) => sum + (s.completed_count || 0), 0);
+  const progressPercent = totalMeters > 0 ? Math.round((completedMeters / totalMeters) * 100) : 0;
+
   // Fetch shops when tab or period changes
   const fetchShops = async () => {
     setLoading(true);
@@ -325,11 +330,12 @@ export default function App() {
             {/* Download PDF button */}
             <button 
               onClick={handleExportPdf}
-              disabled={exporting}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-xl shadow-sm text-sm font-bold hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 transition-all flex-1 sm:flex-none"
+              disabled={exporting || progressPercent < 100}
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-xl shadow-sm text-sm font-bold hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-1 sm:flex-none"
+              title={progressPercent < 100 ? "请录入所有商铺的水电表读数后再生成PDF" : ""}
             >
               <FileDown size={16} className={exporting ? 'animate-bounce' : ''} />
-              <span>{exporting ? '正在导出...' : '一键生成 PDF'}</span>
+              <span>{exporting ? '正在导出...' : progressPercent < 100 ? '待抄表完成' : '一键生成 PDF'}</span>
             </button>
           </div>
         </header>
@@ -353,7 +359,7 @@ export default function App() {
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-400">抄表进度</p>
-                <p className="text-xl font-black text-gray-800">100%</p>
+                <p className={`text-xl font-black ${progressPercent === 100 ? 'text-emerald-600' : 'text-amber-500'}`}>{progressPercent}%</p>
               </div>
             </div>
             

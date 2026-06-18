@@ -244,9 +244,10 @@ th, td {{
     # Add notices
     for i, shop in enumerate(shops):
         # Apply page break before every 3rd notice (index 3, 6, 9...)
-        page_break_style = "page-break-before: always;" if (i > 0 and i % 3 == 0) else ""
+        if i > 0 and i % 3 == 0:
+            html += f'    <p style="page-break-before: always; margin: 0; padding: 0; line-height: 0;">&nbsp;</p>\n'
         
-        html += f'    <div class="notice" style="box-sizing: border-box; padding: 0.5mm 0; margin-bottom: 0.2mm; page-break-inside: avoid; break-inside: avoid; {page_break_style}">\n'
+        html += f'    <div class="notice" style="box-sizing: border-box; padding: 0.5mm 0; margin-bottom: 0.2mm; page-break-inside: avoid; break-inside: avoid;">\n'
         html += f'    <div class="title" style="font-size: 11pt; font-weight: bold; text-align: center; margin-bottom: 0.6mm; line-height: 100%; letter-spacing: 1px; {font_family}">{year} 年 {month} 月 抄表计费通知单</div>\n'
 
         # Meta-table with explicit inline styles
