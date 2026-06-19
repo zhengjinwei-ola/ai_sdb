@@ -97,6 +97,15 @@ def main():
     else:
         pdf_path = f"{year}年{month}月抄表计费通知单.pdf"
         
+    notices_per_page = 3
+    if len(sys.argv) >= 4:
+        try:
+            notices_per_page = int(sys.argv[3])
+            if notices_per_page < 1 or notices_per_page > 3:
+                notices_per_page = 3
+        except ValueError:
+            pass
+        
     wb = openpyxl.load_workbook(excel_path, data_only=True)
     sheet = wb.active
     

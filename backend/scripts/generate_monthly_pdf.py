@@ -108,6 +108,8 @@ def main():
         temp_xlsx = path = os.path.join(os.getcwd(), f"{output_prefix}.xlsx")
         wb.save(temp_xlsx)
         
+        pdf_notices_per_page = data.get('pdf_notices_per_page', 3)
+        
         # Run generate_billing_pdf.py using same python env
         python_bin = sys.executable
         pdf_script = os.path.join(workspace_root, 'meter-billing-converter/scripts/generate_billing_pdf.py')
@@ -115,7 +117,7 @@ def main():
         
         # Run subprocess
         result = subprocess.run(
-            [python_bin, pdf_script, temp_xlsx, output_pdf],
+            [python_bin, pdf_script, temp_xlsx, output_pdf, str(pdf_notices_per_page)],
             capture_output=True,
             text=True
         )

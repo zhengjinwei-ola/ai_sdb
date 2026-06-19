@@ -89,6 +89,85 @@ export default function App() {
   const [newMeterName, setNewMeterName] = useState('电表1');
   const [newMeterPrice, setNewMeterPrice] = useState(1.03);
 
+  // Role, reader management, and PDF settings states
+  const [role, setRole] = useState(localStorage.getItem('role') || 'primary');
+  const [readers, setReaders] = useState([]);
+  const [readerUsername, setReaderUsername] = useState('');
+  const [readerPassword, setReaderPassword] = useState('');
+  const [pdfNoticesPerPage, setPdfNoticesPerPage] = useState(3);
+
+  const fetchReaders = async () => {
+    try {
+      const res = await axios.get('/api/readers');
+      setReaders(res.data);
+    } catch (err) {
+      console.error('Error fetching readers:', err);
+    }
+  };
+
+  const fetchPdfSettings = async () => {
+    try {
+      const res = await axios.get('/api/settings/pdf');
+      setPdfNoticesPerPage(res.data.pdfNoticesPerPage);
+    } catch (err) {
+      console.error('Error fetching PDF settings:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (token && role === 'primary') {
+      fetchReaders();
+      fetchPdfSettings();
+    }
+  }, [token, role]);
+
+  const handleAddReader = async (e) => {
+    e.preventDefault();
+    if (!readerUsername || !readerPassword) {
+      alert('用户名和密码不能为空');
+      return;
+    }
+    try {
+      await axios.post('/api/readers', {
+        username: readerUsername,
+        password: readerPassword
+      });
+      alert('创建抄表员成功！');
+      setReaderUsername('');
+      setReaderPassword('');
+      fetchReaders();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.error || '创建抄表员失败！');
+    }
+  };
+
+  const handleDeleteReader = async (readerId) => {
+    if (!confirm('确定要删除这个抄表员账号吗？')) return;
+    try {
+      await axios.delete(`/api/readers/${readerId}`);
+      alert('删除抄表员成功！');
+      fetchReaders();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.error || '删除抄表员失败！');
+    }
+  };
+
+  const handleSavePdfSettings = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put('/api/settings/pdf', {
+        pdfNoticesPerPage
+      });
+      alert('PDF 生成规则已更新！');
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.error || '更新 PDF 生成规则失败！');
+    }
+  };
+
+
   // Auth Handlers
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -101,8 +180,13 @@ export default function App() {
       });
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('username', res.data.username);
+      localStorage.setItem('role', res.data.role || 'primary');
       setToken(res.data.token);
       setUsername(res.data.username);
+      setRole(res.data.role || 'primary');
+      if (res.data.role === 'reader') {
+        setActiveTab('record');
+      }
     } catch (err) {
       console.error(err);
       setAuthError(err.response?.data?.error || '登录失败，请检查用户名或密码！');
@@ -134,8 +218,10 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
+    localStorage.removeItem('role');
     setToken('');
     setUsername('');
+    setRole('primary');
     setShops([]);
   };
 
@@ -483,20 +569,24 @@ export default function App() {
               <Activity size={16} />
               <span>抄表录入</span>
             </button>
-            <button 
-              onClick={() => setActiveTab('history')}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}
-            >
-              <FileText size={16} />
-              <span>历史看板</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('manage')}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'manage' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}
-            >
-              <Settings size={16} />
-              <span>表计配置</span>
-            </button>
+            {role === 'primary' && (
+              <button 
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}
+              >
+                <FileText size={16} />
+                <span>历史看板</span>
+              </button>
+            )}
+            {role === 'primary' && (
+              <button 
+                onClick={() => setActiveTab('manage')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'manage' ? 'bg-amber-500 text-slate-950 font-bold' : 'hover:bg-slate-800 text-slate-300'}`}
+              >
+                <Settings size={16} />
+                <span>表计配置</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -506,7 +596,9 @@ export default function App() {
             <span className="bg-slate-800 text-amber-500 font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">
               {username ? username[0].toUpperCase() : 'U'}
             </span>
-            <span className="text-sm font-medium text-slate-300 truncate">{username}</span>
+            <span className="text-sm font-medium text-slate-300 truncate">
+              {username} ({role === 'primary' ? '主账号' : '抄表员'})
+            </span>
           </div>
           <button
             onClick={handleLogout}
@@ -532,7 +624,7 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {/* User display & logout for mobile */}
             <div className="flex sm:hidden items-center justify-between w-full pb-2 border-b border-gray-100">
-              <span className="text-xs text-gray-500 font-bold">当前用户: <b className="text-gray-700">{username}</b></span>
+              <span className="text-xs text-gray-500 font-bold">当前用户: <b className="text-gray-700">{username} ({role === 'primary' ? '主账号' : '抄表员'})</b></span>
               <button 
                 onClick={handleLogout}
                 className="text-xs font-black text-rose-500 hover:text-rose-600"
@@ -546,7 +638,7 @@ export default function App() {
               <span className="bg-slate-800 text-amber-500 font-bold w-6 h-6 rounded-lg flex items-center justify-center text-[10px]">
                 {username ? username[0].toUpperCase() : 'U'}
               </span>
-              <span className="text-xs font-bold">{username}</span>
+              <span className="text-xs font-bold">{username} ({role === 'primary' ? '主账号' : '抄表员'})</span>
               <span className="text-slate-300">|</span>
               <button 
                 onClick={handleLogout}
@@ -863,6 +955,114 @@ export default function App() {
                 ))}
               </div>
             )}
+
+            {/* PDF Notice Page Settings Section */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+              <div className="border-b border-gray-100 pb-3">
+                <h4 className="font-bold text-gray-800 text-lg">PDF 账单生成设置</h4>
+                <p className="text-xs text-gray-400">设置导出的 PDF 通知单排版格式</p>
+              </div>
+              <form onSubmit={handleSavePdfSettings} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">每页生成通知单数量：</label>
+                  <div className="flex flex-wrap gap-4 items-center">
+                    {[1, 2, 3].map((num) => (
+                      <label key={num} className="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
+                        <input 
+                          type="radio"
+                          name="pdfNoticesPerPage"
+                          value={num}
+                          checked={pdfNoticesPerPage === num}
+                          onChange={() => setPdfNoticesPerPage(num)}
+                          className="text-amber-500 focus:ring-amber-400"
+                        />
+                        <span>一页 {num} 个通知单 {num === 3 ? '(默认)' : ''}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <button 
+                  type="submit"
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-sm"
+                >
+                  保存生成规则
+                </button>
+              </form>
+            </div>
+
+            {/* Meter Reader Account Management Section */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+              <div className="border-b border-gray-100 pb-3">
+                <h4 className="font-bold text-gray-800 text-lg">抄表员账号管理</h4>
+                <p className="text-xs text-gray-400">为主账号创建、删除抄表员子账号</p>
+              </div>
+              
+              {/* Create Reader Form */}
+              <form onSubmit={handleAddReader} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">抄表员用户名</label>
+                  <input 
+                    type="text"
+                    value={readerUsername}
+                    onChange={(e) => setReaderUsername(e.target.value)}
+                    placeholder="输入用户名"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">登录密码</label>
+                  <input 
+                    type="password"
+                    value={readerPassword}
+                    onChange={(e) => setReaderPassword(e.target.value)}
+                    placeholder="输入密码"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-xl text-xs transition-colors shadow-md"
+                >
+                  创建抄表员账号
+                </button>
+              </form>
+
+              {/* Readers List */}
+              {readers.length > 0 ? (
+                <div className="border border-gray-100 rounded-xl overflow-hidden mt-4">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-gray-500 font-bold border-b border-gray-100">
+                        <th className="py-3 px-4">用户名</th>
+                        <th className="py-3 px-4">创建时间</th>
+                        <th className="py-3 px-4 text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {readers.map((reader) => (
+                        <tr key={reader.id} className="border-b border-gray-50 hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-4 font-bold text-gray-700">{reader.username}</td>
+                          <td className="py-3 px-4 text-gray-400">
+                            {new Date(reader.created_at).toLocaleString('zh-CN', { hour12: false })}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button 
+                              onClick={() => handleDeleteReader(reader.id)}
+                              type="button"
+                              className="text-rose-500 hover:text-rose-600 font-bold"
+                            >
+                              删除
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">暂无抄表员账号配置。</p>
+              )}
+            </div>
           </div>
         )}
 

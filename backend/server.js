@@ -32,8 +32,19 @@ function authenticateToken(req, res, next) {
       return res.status(403).json({ error: 'Invalid or expired token.' });
     }
     req.user = user;
+    // Set effectiveUserId for query filtering:
+    // If reader, use primary user's id (parent_id), otherwise use user's own id.
+    req.effectiveUserId = user.role === 'reader' ? user.parent_id : user.id;
     next();
   });
+}
+
+// Middleware to require primary user role
+function requirePrimary(req, res, next) {
+  if (req.user.role !== 'primary') {
+    return res.status(403).json({ error: '权限不足：该操作仅限主账号进行。' });
+  }
+  next();
 }
 
 // Helper function to subtract 1 month from YYYY-MM
@@ -53,7 +64,7 @@ function getPreviousPeriod(period) {
 
 // --- Auth Endpoints ---
 
-// POST /api/auth/register - Register a new user
+// POST /api/auth/register - Register a new user (default: primary role)
 app.post('/api/auth/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -65,7 +76,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: '该用户名已被注册' });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword]);
+    await pool.query('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [username, hashedPassword, 'primary']);
     res.status(201).json({ message: '注册成功' });
   } catch (error) {
     console.error('Error during registration:', error);
@@ -89,8 +100,17 @@ app.post('/api/auth/login', async (req, res) => {
     if (!validPassword) {
       return res.status(401).json({ error: '用户名或密码不正确' });
     }
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, username: user.username });
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role || 'primary', parent_id: user.parent_id },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    res.json({
+      token,
+      username: user.username,
+      role: user.role || 'primary',
+      parentId: user.parent_id
+    });
   } catch (error) {
     console.error('Error during login:', error);
     res.status(500).json({ error: error.message });
@@ -125,7 +145,7 @@ app.get('/api/shops', authenticateToken, async (req, res) => {
         WHERE s.user_id = ?
         ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code;
       `;
-      params.push(period, period, req.user.id);
+      params.push(period, period, req.effectiveUserId);
     } else {
       query = `
         SELECT s.*, 
@@ -141,14 +161,14 @@ app.get('/api/shops', authenticateToken, async (req, res) => {
         WHERE s.user_id = ?
         ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code;
       `;
-      params.push(req.user.id);
+      params.push(req.effectiveUserId);
     }
     const [shops] = await pool.query(query, params);
     
     // Fetch all meters belonging to this user's shops
     const [meters] = await pool.query(
       'SELECT m.* FROM meters m JOIN shops s ON m.shop_id = s.id WHERE s.user_id = ? ORDER BY m.id',
-      [req.user.id]
+      [req.effectiveUserId]
     );
     
     // Group meters by shop_id
@@ -173,22 +193,22 @@ app.get('/api/shops', authenticateToken, async (req, res) => {
   }
 });
 
-// 2. POST /api/shops - Add new shop
-app.post('/api/shops', authenticateToken, async (req, res) => {
+// 2. POST /api/shops - Add new shop (Requires Primary)
+app.post('/api/shops', authenticateToken, requirePrimary, async (req, res) => {
   const { shopCode, shopName, laborFee, rubbishFee } = req.body;
   if (!shopCode || !shopName) {
     return res.status(400).json({ error: 'Shop code and name are required' });
   }
   try {
     // Check code uniqueness for this user
-    const [existing] = await pool.query('SELECT id FROM shops WHERE user_id = ? AND shop_code = ?', [req.user.id, shopCode]);
+    const [existing] = await pool.query('SELECT id FROM shops WHERE user_id = ? AND shop_code = ?', [req.effectiveUserId, shopCode]);
     if (existing.length > 0) {
       return res.status(400).json({ error: `该编号的商铺 ${shopCode} 已存在` });
     }
 
     const [result] = await pool.query(
       'INSERT INTO shops (shop_code, shop_name, labor_fee, rubbish_fee, user_id) VALUES (?, ?, ?, ?, ?)',
-      [shopCode, shopName, laborFee || 0, rubbishFee || 0, req.user.id]
+      [shopCode, shopName, laborFee || 0, rubbishFee || 0, req.effectiveUserId]
     );
     res.status(201).json({ id: result.insertId, shopCode, shopName, laborFee, rubbishFee });
   } catch (error) {
@@ -197,8 +217,8 @@ app.post('/api/shops', authenticateToken, async (req, res) => {
   }
 });
 
-// 3. POST /api/shops/:id/meters - Add new meter to shop
-app.post('/api/shops/:id/meters', authenticateToken, async (req, res) => {
+// 3. POST /api/shops/:id/meters - Add new meter to shop (Requires Primary)
+app.post('/api/shops/:id/meters', authenticateToken, requirePrimary, async (req, res) => {
   const shopId = req.params.id;
   const { meterType, meterName, unitPrice } = req.body;
   if (!meterType || !meterName || unitPrice === undefined) {
@@ -206,7 +226,7 @@ app.post('/api/shops/:id/meters', authenticateToken, async (req, res) => {
   }
   try {
     // Verify shop ownership
-    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.effectiveUserId]);
     if (shop.length === 0) {
       return res.status(403).json({ error: 'Access denied or shop not found.' });
     }
@@ -222,15 +242,15 @@ app.post('/api/shops/:id/meters', authenticateToken, async (req, res) => {
   }
 });
 
-// 4. PUT /api/meters/:id - Edit meter (modify price or deactivate)
-app.put('/api/meters/:id', authenticateToken, async (req, res) => {
+// 4. PUT /api/meters/:id - Edit meter (modify price or deactivate) (Requires Primary)
+app.put('/api/meters/:id', authenticateToken, requirePrimary, async (req, res) => {
   const meterId = req.params.id;
   const { unitPrice, isActive } = req.body;
   try {
     // Verify meter ownership through shop ownership
     const [shop] = await pool.query(
       'SELECT s.id FROM shops s JOIN meters m ON s.id = m.shop_id WHERE m.id = ? AND s.user_id = ?',
-      [meterId, req.user.id]
+      [meterId, req.effectiveUserId]
     );
     if (shop.length === 0) {
       return res.status(403).json({ error: 'Access denied or meter not found.' });
@@ -274,7 +294,7 @@ app.get('/api/shops/:id/readings', authenticateToken, async (req, res) => {
   
   try {
     // Verify shop ownership
-    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.effectiveUserId]);
     if (shop.length === 0) {
       return res.status(403).json({ error: 'Access denied or shop not found.' });
     }
@@ -348,7 +368,7 @@ app.post('/api/readings/bulk', authenticateToken, async (req, res) => {
     // Get all meter IDs belonging to this user's shops
     const [userMeters] = await pool.query(
       'SELECT m.id FROM meters m JOIN shops s ON m.shop_id = s.id WHERE s.user_id = ?',
-      [req.user.id]
+      [req.effectiveUserId]
     );
     const userMeterIds = new Set(userMeters.map(m => m.id));
 
@@ -425,9 +445,79 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
       WHERE s.user_id = ?
       ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code, m.id;
     `;
-    const [rows] = await pool.query(query, [period, req.user.id]);
+    const [rows] = await pool.query(query, [period, req.effectiveUserId]);
     
     // Check if there are any incomplete readings (current_reading is null)
+    const incompleteRows = rows.filter(row => row.current_reading === null);
+    if (incompleteRows.length > 0) {
+      const incompleteShopNames = [...new Set(incompleteRows.map(r => r.shop_name))].join('、');
+      return res.status(400).json({ 
+        error: '还有未完成的抄表记录，无法生成 PDF 账单！', 
+        details: `未完成录入的店铺：${incompleteShopNames}。请确保所有店铺的水电表底数均已录入。` 
+      });
+    }
+    
+    // Group by shop
+    const shopsMap = {};
+    for (const row of rows) {
+      if (!shopsMap[row.shop_id]) {
+        shopsMap[row.shop_id] = {
+          shop_code: row.shop_code,
+          shop_name: row.shop_name,
+          labor_fee: parseFloat(row.labor_fee),
+          rubbish_fee: parseFloat(row.rubbish_fee),
+          meters: []
+        };
+      }
+      shopsMap[row.shop_id].meters.push({
+        meter_type: row.meter_type,
+        meter_name: row.meter_name,
+        unit_price: parseFloat(row.unit_price),
+        previous_reading: row.previous_reading !== null ? parseFloat(row.previous_reading) : 0.0,
+        current_reading: row.current_reading !== null ? parseFloat(row.current_reading) : null
+      });
+    }
+    
+    const shopsList = Object.values(shopsMap);
+    
+    // Fetch PDF notice per page config for this primary user
+    const [userRows] = await pool.query('SELECT pdf_notices_per_page FROM users WHERE id = ?', [req.effectiveUserId]);
+    const pdfNoticesPerPage = userRows.length > 0 ? userRows[0].pdf_notices_per_page : 3;
+    
+    // B. Write readings to temp JSON (including pdf_notices_per_page setting)
+    const tempJsonPath = path.join(process.cwd(), 'temp_readings.json');
+    writeFileSync(tempJsonPath, JSON.stringify({ period, pdf_notices_per_page: pdfNoticesPerPage, shops: shopsList }, null, 2));
+    
+    // C. Execute python script to generate excel and then convert to PDF
+    const pyPath = path.join(process.cwd(), '../.venv/bin/python3');
+    const generatorScript = path.join(process.cwd(), 'scripts/generate_monthly_pdf.py');
+    
+    exec(`${pyPath} ${generatorScript} ${tempJsonPath}`, (error, stdout, stderr) => {
+      // Cleanup temp JSON
+      try { unlinkSync(tempJsonPath); } catch(_) {}
+      
+      if (error) {
+        console.error('Python generator stderr:', stderr);
+        return res.status(500).json({ error: 'Failed to generate PDF billing notices', details: stderr });
+      }
+      
+      const outputPdfPath = stdout.trim();
+      if (!outputPdfPath || !outputPdfPath.endsWith('.pdf')) {
+        return res.status(500).json({ error: 'Python output did not yield a valid PDF path', stdout });
+      }
+      
+      // Stream PDF back to user
+      res.download(outputPdfPath, path.basename(outputPdfPath), (err) => {
+        // Cleanup generated PDF after download
+        try { unlinkSync(outputPdfPath); } catch(_) {}
+      });
+    });
+    
+  } catch (error) {
+    console.error('Error generating PDF export:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
     const incompleteRows = rows.filter(row => row.current_reading === null);
     if (incompleteRows.length > 0) {
       const incompleteShopNames = [...new Set(incompleteRows.map(r => r.shop_name))].join('、');
@@ -513,7 +603,7 @@ app.get('/api/reports/ledger', authenticateToken, async (req, res) => {
       WHERE s.user_id = ?
       ORDER BY CAST(s.shop_code AS UNSIGNED), s.shop_code, m.id;
     `;
-    const [rows] = await pool.query(query, [period, req.user.id]);
+    const [rows] = await pool.query(query, [period, req.effectiveUserId]);
     
     // Group by shop and aggregate usages
     const shopsMap = {};
@@ -595,8 +685,8 @@ app.get('/api/reports/ledger', authenticateToken, async (req, res) => {
   }
 });
 
-// 9. PUT /api/shops/:id - Edit shop details
-app.put('/api/shops/:id', authenticateToken, async (req, res) => {
+// 9. PUT /api/shops/:id - Edit shop details (Requires Primary)
+app.put('/api/shops/:id', authenticateToken, requirePrimary, async (req, res) => {
   const shopId = req.params.id;
   const { shopCode, shopName, laborFee, rubbishFee } = req.body;
   if (!shopCode || !shopName) {
@@ -604,7 +694,7 @@ app.put('/api/shops/:id', authenticateToken, async (req, res) => {
   }
   try {
     // Verify ownership
-    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.effectiveUserId]);
     if (shop.length === 0) {
       return res.status(403).json({ error: 'Access denied or shop not found.' });
     }
@@ -612,7 +702,7 @@ app.put('/api/shops/:id', authenticateToken, async (req, res) => {
     // Check code uniqueness for this user
     const [existing] = await pool.query(
       'SELECT id FROM shops WHERE user_id = ? AND shop_code = ? AND id != ?',
-      [req.user.id, shopCode, shopId]
+      [req.effectiveUserId, shopCode, shopId]
     );
     if (existing.length > 0) {
       return res.status(400).json({ error: `该编号的商铺 ${shopCode} 已存在` });
@@ -629,12 +719,12 @@ app.put('/api/shops/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// 10. DELETE /api/shops/:id - Delete shop (and cascade meters/readings)
-app.delete('/api/shops/:id', authenticateToken, async (req, res) => {
+// 10. DELETE /api/shops/:id - Delete shop (and cascade meters/readings) (Requires Primary)
+app.delete('/api/shops/:id', authenticateToken, requirePrimary, async (req, res) => {
   const shopId = req.params.id;
   try {
     // Verify ownership
-    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.user.id]);
+    const [shop] = await pool.query('SELECT id FROM shops WHERE id = ? AND user_id = ?', [shopId, req.effectiveUserId]);
     if (shop.length === 0) {
       return res.status(403).json({ error: 'Access denied or shop not found.' });
     }
@@ -643,6 +733,99 @@ app.delete('/api/shops/:id', authenticateToken, async (req, res) => {
     res.json({ message: 'Shop deleted successfully' });
   } catch (error) {
     console.error('Error deleting shop:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Reader Management Endpoints ---
+
+// 11. GET /api/readers - List all meter readers for this primary user
+app.get('/api/readers', authenticateToken, requirePrimary, async (req, res) => {
+  try {
+    const [readers] = await pool.query(
+      'SELECT id, username, created_at FROM users WHERE parent_id = ? AND role = "reader"',
+      [req.user.id]
+    );
+    res.json(readers);
+  } catch (error) {
+    console.error('Error fetching readers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 12. POST /api/readers - Create a new meter reader account under this primary user
+app.post('/api/readers', authenticateToken, requirePrimary, async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: '用户名和密码不能为空' });
+  }
+  try {
+    // Check global username uniqueness
+    const [existing] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: '该用户名已被占用' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await pool.query(
+      'INSERT INTO users (username, password, role, parent_id) VALUES (?, ?, "reader", ?)',
+      [username, hashedPassword, req.user.id]
+    );
+    res.status(201).json({ message: '创建抄表员账号成功' });
+  } catch (error) {
+    console.error('Error creating reader:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 13. DELETE /api/readers/:id - Delete a meter reader account
+app.delete('/api/readers/:id', authenticateToken, requirePrimary, async (req, res) => {
+  const readerId = req.params.id;
+  try {
+    const [result] = await pool.query(
+      'DELETE FROM users WHERE id = ? AND parent_id = ? AND role = "reader"',
+      [readerId, req.user.id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: '未找到该抄表员或无权删除' });
+    }
+    res.json({ message: '删除抄表员账号成功' });
+  } catch (error) {
+    console.error('Error deleting reader:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- PDF Settings Endpoints ---
+
+// 14. GET /api/settings/pdf - Get PDF notices per page settings
+app.get('/api/settings/pdf', authenticateToken, async (req, res) => {
+  try {
+    const [userRows] = await pool.query('SELECT pdf_notices_per_page FROM users WHERE id = ?', [req.effectiveUserId]);
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ pdfNoticesPerPage: userRows[0].pdf_notices_per_page });
+  } catch (error) {
+    console.error('Error fetching PDF settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 15. PUT /api/settings/pdf - Update PDF notices per page settings (Requires Primary)
+app.put('/api/settings/pdf', authenticateToken, requirePrimary, async (req, res) => {
+  const { pdfNoticesPerPage } = req.body;
+  const limit = parseInt(pdfNoticesPerPage, 10);
+  if (isNaN(limit) || limit < 1 || limit > 3) {
+    return res.status(400).json({ error: '每页生成PDF数量必须是1到3之间的整数' });
+  }
+  try {
+    await pool.query(
+      'UPDATE users SET pdf_notices_per_page = ? WHERE id = ?',
+      [limit, req.user.id]
+    );
+    res.json({ message: 'PDF生成配置已更新', pdfNoticesPerPage: limit });
+  } catch (error) {
+    console.error('Error updating PDF settings:', error);
     res.status(500).json({ error: error.message });
   }
 });
