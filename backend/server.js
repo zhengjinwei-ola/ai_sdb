@@ -754,10 +754,10 @@ app.put('/api/settings/pdf', authenticateToken, requirePrimary, async (req, res)
   }
   try {
     await pool.query(
-      'UPDATE users SET pdf_notices_per_page = ? WHERE id = ?',
-      [limit, req.user.id]
+      'UPDATE users SET pdf_notices_per_page = ? WHERE id = ? OR (parent_id = ? AND role = "reader")',
+      [limit, req.user.id, req.user.id]
     );
-    res.json({ message: 'PDF生成配置已更新', pdfNoticesPerPage: limit });
+    res.json({ message: 'PDF生成配置已更新并同步至抄表员', pdfNoticesPerPage: limit });
   } catch (error) {
     console.error('Error updating PDF settings:', error);
     res.status(500).json({ error: error.message });

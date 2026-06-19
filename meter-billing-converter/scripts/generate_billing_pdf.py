@@ -252,8 +252,8 @@ th, td {{
 
     # Add notices
     for i, shop in enumerate(shops):
-        # Apply page break before every 3rd notice (index 3, 6, 9...)
-        if i > 0 and i % 3 == 0:
+        # Apply page break before every Nth notice
+        if i > 0 and i % notices_per_page == 0:
             html += f'    <p style="page-break-before: always; margin: 0; padding: 0; line-height: 0;">&nbsp;</p>\n'
         
         html += f'    <div class="notice" style="box-sizing: border-box; padding: 0.5mm 0; margin-bottom: 0.2mm; page-break-inside: avoid; break-inside: avoid;">\n'
@@ -375,8 +375,8 @@ th, td {{
         html += f'  </div>\n'
         
         # Add divider line only between notices on the SAME page
-        pos_in_page = i % 3
-        if pos_in_page < 2 and i < len(shops) - 1:
+        pos_in_page = i % notices_per_page
+        if pos_in_page < (notices_per_page - 1) and i < len(shops) - 1:
             html += f'  <div class="divider-line" style="margin: 0.4mm 0; border-top: 1px dashed #000; height: 1px; font-size: 1px; line-height: 1px;"></div>\n'
 
     # Summary Page (always breaks page dynamically via CSS page-break-before)
